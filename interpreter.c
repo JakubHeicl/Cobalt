@@ -191,19 +191,6 @@ void set_command(Token *token, Command command) {
     token->token_type = COMMAND;
 }
 
-/*
-Nejdulzitejsi zmena:
-- pointery se v C predavaji hodnotou
-- kdyz tedy drive funkce delala "tokens = malloc(...)", zmenila jen svou
-  lokalni kopii pointeru
-- main() pak stale drzel neinicializovanou adresu
-
-Proto zde predavame Token **, Label **, Variable ** a
-char (**messages)[MESSAGE_SIZE], aby funkce mohla vratit skutecne alokovana
-pole zpet do volajiciho.
-
-Soucasne vracime i pocty prvku, protoze z pointeru nejde poznat delka pole.
-*/
 void tokenize_file(FILE *file, Token **tokens, int *token_count, Label **labels, int *label_count, char (**messages)[MESSAGE_SIZE], Variable **variables, int *variables_size) {
     int token_counter = 0;
     int label_counter = 0;

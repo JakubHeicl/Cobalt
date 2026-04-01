@@ -6,15 +6,18 @@ from pathlib import Path
 import sys
 
 from .stack import Stack
-from .instructions import Opcode, OPCODE_FUNCTIONS, STP
+from .instructions import *
 from .interpreter_errors import InterpreterSyntaxError, InterpreterRuntimeError, ExecutionError
 
+DEFAULT_STACK_SIZE = 64
+
 class TokenType(Enum):
-    CMD = auto()    # Command
-    NUM = auto()    # Number
-    IDT = auto()    # Identifier
-    STR = auto()    # String
-    LBL = auto()    # Label
+    COMMAND = auto()    # Command
+    POS_INT = auto()    # Integer
+    FLOAT = auto()  # Float
+    IDENTIFIER = auto()    # Identifier
+    STRING = auto()    # String
+    LABEL = auto()    # Label
 
 @dataclass
 class Token:
@@ -25,8 +28,15 @@ class Token:
 @dataclass
 class Instruction:
     function: Callable | None
-    argument: float | None
+    argument: float | int | None
     line: int
+
+@dataclass
+class Program:
+    instructions: list[Instruction]
+    strings: list[str]
+    variables: np.array
+    stack_size: int
 
 def tokenize(file: Path) -> list[Token]:
     """
@@ -62,22 +72,29 @@ def tokenize(file: Path) -> list[Token]:
             if character == '"':
                 inside_string = not inside_string
                 if not inside_string:
-                    tokens.append(Token(TokenType.STR, word, line_number))
+                    tokens.append(Token(TokenType.STRING, word, line_number))
                     word = ""
             elif character.isspace() and not inside_string and word in [e.name for e in Opcode]:
-                tokens.append(Token(TokenType.CMD, Opcode[word], line_number))
+                tokens.append(Token(TokenType.COMMAND, Opcode[word], line_number))
                 word = ""
             elif character.isspace() and not inside_string and word:
                 try:
-                    tokens.append(Token(TokenType.NUM, float(word), line_number))
+                    pos_int = int(word)
+                    if pos_int < 0:
+                        raise ValueError
+                    tokens.append(Token(TokenType.POS_INT, pos_int, line_number))
                     word = ""
                 except:
-                    if word.endswith(":"):
-                        tokens.append(Token(TokenType.LBL, word[:-1], line_number))
+                    try:
+                        tokens.append(Token(TokenType.FLOAT, float(word), line_number))
                         word = ""
-                    else:
-                        tokens.append(Token(TokenType.IDT, word, line_number))
-                        word = ""
+                    except:
+                        if word.endswith(":"):
+                            tokens.append(Token(TokenType.LABEL, word[:-1], line_number))
+                            word = ""
+                        else:
+                            tokens.append(Token(TokenType.IDENTIFIER, word, line_number))
+                            word = ""
             elif character.isspace() and not inside_string: 
                 continue
             else:
@@ -99,43 +116,47 @@ def validate(tokens: list[Token]) -> None:
     is_STP = False
     for i, token in enumerate(tokens):
         current_line = token.line
-        if token.type == TokenType.CMD:
+        if token.type == TokenType.COMMAND:
+            if token.value == Opcode.STK and i != 0:
+                raise InterpreterSyntaxError(f"STK command must be the first command in the program.", current_line)
             if i + 1 >= len(tokens):
-                if token.value in [Opcode.PUS, Opcode.JIZ, Opcode.JUM, Opcode.JIT, Opcode.GET, Opcode.SET, Opcode.PRC]:
+                if token.value in OPCODES_WITH_ARGUMENT:
                     raise InterpreterSyntaxError(f"Missing argument for {token.value.name} command.", current_line)
-            if token.value == Opcode.PUS and tokens[i+1].type != TokenType.NUM:
-                raise InterpreterSyntaxError(f"Invalid argument for PUS. Expected a number but got {tokens[i+1].type.name}.", current_line)
-            if token.value in [Opcode.JIZ, Opcode.JUM, Opcode.JIT] and tokens[i+1].type != TokenType.IDT:
+            if token.value in OPCODES_WITH_FLOAT_ARGUMENT and (tokens[i+1].type != TokenType.POS_INT and tokens[i+1].type != TokenType.FLOAT):
+                raise InterpreterSyntaxError(f"Invalid argument for {token.value.name}. Expected a number but got {tokens[i+1].type.name}.", current_line)
+            if token.value in OPCODES_WITH_POS_INT_ARGUMENT and tokens[i+1].type != TokenType.POS_INT:
+                raise InterpreterSyntaxError(f"Invalid argument for {token.value.name}. Expected a positive integer but got {tokens[i+1].type.name}.", current_line)
+            if token.value in OPCODES_WITH_LABEL_ARGUMENT and tokens[i+1].type != TokenType.IDENTIFIER:
                 raise InterpreterSyntaxError(f"Invalid argument for {token.value.name}. Expected an identifier for a label but got {tokens[i+1].type.name}.", current_line)
-            if token.value in [Opcode.GET, Opcode.SET] and tokens[i+1].type != TokenType.IDT:
+            if token.value in OPCODES_WITH_VARIABLE_ARGUMENT and tokens[i+1].type != TokenType.IDENTIFIER:
                 raise InterpreterSyntaxError(f"Invalid argument for {token.value.name}. Expected an identifier for a variable but got {tokens[i+1].type.name}.", current_line)
-            if token.value == Opcode.PRC and tokens[i+1].type != TokenType.STR:
-                raise InterpreterSyntaxError(f"Invalid argument for PRC. Expected a string but got {tokens[i+1].type.name}.", current_line)
+            if token.value in OPCODES_WITH_STRING_ARGUMENT and tokens[i+1].type != TokenType.STRING:
+                raise InterpreterSyntaxError(f"Invalid argument for {token.value.name}. Expected a string but got {tokens[i+1].type.name}.", current_line)
             if token.value == Opcode.STP:
                 is_STP = True
 
-        if token.type == TokenType.IDT:
+        if token.type == TokenType.IDENTIFIER:
             if i == 0:
                 raise InterpreterSyntaxError(f"Unexpected identifier '{token.value}'", current_line)
-            elif tokens[i-1].value not in [Opcode.JIZ, Opcode.JUM, Opcode.JIT, Opcode.GET, Opcode.SET]:
+            elif tokens[i-1].value not in OPCODES_WITH_IDENTIFIER_ARGUMENT:
                 raise InterpreterSyntaxError(f"Unexpected identifier '{token.value}'", current_line)
         
-        if token.type == TokenType.STR:
+        if token.type == TokenType.STRING:
             if i == 0:
                 raise InterpreterSyntaxError(f"Unexpected string '{token.value}'", current_line)
-            elif tokens[i-1].value not in [Opcode.PRC]:
+            elif tokens[i-1].value not in OPCODES_WITH_STRING_ARGUMENT:
                 raise InterpreterSyntaxError(f"Unexpected string '{token.value}'", current_line)
             
-        if token.type == TokenType.NUM:
+        if token.type == TokenType.POS_INT or token.type == TokenType.FLOAT:
             if i == 0:
                 raise InterpreterSyntaxError(f"Unexpected number '{token.value}'", current_line)
-            elif tokens[i-1].value not in [Opcode.PUS]:
+            elif tokens[i-1].value not in OPCODES_WITH_FLOAT_ARGUMENT and tokens[i-1].value not in OPCODES_WITH_POS_INT_ARGUMENT:
                 raise InterpreterSyntaxError(f"Unexpected number '{token.value}'", current_line)
 
     if not is_STP:
         raise InterpreterSyntaxError("Missing STP command to stop the program.", current_line)
 
-def parse(tokens: list[Token]) -> tuple[list[Instruction], list[str], np.array]:
+def parse(tokens: list[Token]) -> Program:
 
     """Parses the list of tokens and returns a list of instructions, a list of messages and an array of variables. Also checks for syntax errors such as duplicate labels and undefined labels."""
 
@@ -143,90 +164,110 @@ def parse(tokens: list[Token]) -> tuple[list[Instruction], list[str], np.array]:
     token_pairs : list[list[Token]] = []
 
     for i, token in enumerate(tokens):
-        if token.type in [TokenType.CMD, TokenType.LBL]:
-            if token.value in [Opcode.PUS, Opcode.JIZ, Opcode.JUM, Opcode.JIT, Opcode.GET, Opcode.SET, Opcode.PRC]:
+        if token.type in [TokenType.COMMAND, TokenType.LABEL]:
+            if token.value in OPCODES_WITH_ARGUMENT:
                 token_pairs.append([token, tokens[i+1]])
             else:
                 token_pairs.append([token, None])
 
-    # Second pass: Create a dictionary of labels, variables and messages with their corresponding index in the instructions list, variables array and messages list respectively
-    messages: list[str] = []
-    dict_variables: dict[str, int] = {}
-    dict_messages: dict[str, int] = {}
-    labels: dict[str, int] = {}
+    # Check if the first command is STK to determine the stack size. If not, use the default stack size of 64.
+
+    first_token, first_argument = token_pairs[0]
+    if first_token.value == Opcode.STK:
+        stack_size = first_argument.value
+        token_pairs.pop(0)
+    else:
+        stack_size = DEFAULT_STACK_SIZE
+
+    # Second pass: Create a dictionary of labels, variables and strings with their corresponding index in the instructions list, variables array and messages list respectively
+
+    strings: list[str] = []
+    variable_table: dict[str, int] = {}
+    string_table: dict[str, int] = {}
+    label_table: dict[str, int] = {}
 
     instruction_index = 0
-    variables_index = 0
-    messages_index = 0
 
     for token, argument in token_pairs:
-        if token.type == TokenType.LBL:
-            if token.value in labels:
+        if token.type == TokenType.LABEL:
+            if token.value in label_table:
                 raise InterpreterSyntaxError(f"Duplicate label '{token.value}'", token.line)
-            labels[token.value] = instruction_index
+            label_table[token.value] = instruction_index
             continue
         if token.value in [Opcode.GET, Opcode.SET]:
-            if argument.value not in dict_variables:
-                dict_variables[argument.value] = variables_index
-                variables_index += 1
+            if argument.value not in variable_table:
+                variable_table[argument.value] = len(variable_table)
         if token.value == Opcode.PRC:
-            if argument.value not in dict_messages:
-                dict_messages[argument.value] = messages_index
-                messages.append(argument.value)
-                messages_index += 1
+            if argument.value not in string_table:
+                string_table[argument.value] = len(string_table)
+                strings.append(argument.value)
 
         instruction_index += 1
 
-    variables = np.zeros(variables_index)
+    variables = np.zeros(len(variable_table))
 
     # Third pass: Check for undefined labels
 
     for token, argument in token_pairs:
-        if token.value in [Opcode.JIT, Opcode.JIZ, Opcode.JUM]:
-            if argument.value not in labels:
+        if token.value in OPCODES_WITH_LABEL_ARGUMENT:
+            if argument.value not in label_table:
                 raise InterpreterSyntaxError(f"Undefined label '{argument.value}'", token.line)
 
     # Fourth pass: Create a list of instructions with their corresponding function and argument (if any)
     instructions: list[Instruction] = []
 
     for token, argument in token_pairs:
-        if token.type == TokenType.CMD:
+        if token.type == TokenType.COMMAND:
+
             function = OPCODE_FUNCTIONS[token.value]
-            if token.value in [Opcode.PUS]:
+
+            if token.value in OPCODES_WITH_FLOAT_ARGUMENT:
                 instructions.append(Instruction(function, argument.value, token.line))
-            elif token.value in [Opcode.JIT, Opcode.JIZ, Opcode.JUM]:
-                instructions.append(Instruction(function, labels[argument.value], token.line))
-            elif token.value in [Opcode.GET, Opcode.SET]:
-                instructions.append(Instruction(function, dict_variables[argument.value], token.line))
-            elif token.value == Opcode.PRC:
-                instructions.append(Instruction(function, dict_messages[argument.value], token.line))
+
+            elif token.value in OPCODES_WITH_LABEL_ARGUMENT:
+                instructions.append(Instruction(function, label_table[argument.value], token.line))
+
+            elif token.value in OPCODES_WITH_VARIABLE_ARGUMENT:
+                instructions.append(Instruction(function, variable_table[argument.value], token.line))
+
+            elif token.value in OPCODES_WITH_STRING_ARGUMENT:
+                instructions.append(Instruction(function, string_table[argument.value], token.line))
+
             else:
                 instructions.append(Instruction(function, None, token.line))
 
-    return instructions, messages, variables
+    return Program(instructions, strings, variables, stack_size)
 
-def execute(instructions: list[Instruction], messages: list[str], variables: np.array) -> None:
+def execute(program: Program) -> None:
 
     """Executes the list of instructions using the provided messages and variables."""
 
-    stack = Stack()
-    pc = 0
+    instructions = program.instructions
+    strings = program.strings
+    variables = program.variables
+    stack_size = program.stack_size
 
-    while instructions[pc].function is not STP:
-        instruction = instructions[pc]
+    initialized_variables = [False] * len(variables)
+
+    stack = Stack(stack_size)
+
+    runtime_state = RuntimeState(stack, variables, strings, initialized_variables)
+
+    while instructions[runtime_state.pc].function is not STP:
+        instruction = instructions[runtime_state.pc]
         try:
-            pc = instruction.function(stack, instruction.argument, messages, variables, pc=pc)
+            instruction.function(runtime_state, instruction.argument)
         except ExecutionError as e:
             raise InterpreterRuntimeError(e.message, instruction.line)
-        if pc >= len(instructions):
+        if runtime_state.pc >= len(instructions):
             raise InterpreterRuntimeError("Program counter out of bounds. No STP command found to stop the program.", instructions[-1].line)
 
 def run_file(file: Path) -> None:
     try:
         tokens = tokenize(file)
         validate(tokens)
-        instructions, messages, variables = parse(tokens)
-        execute(instructions, messages, variables)
+        program = parse(tokens)
+        execute(program)
     except InterpreterSyntaxError as e:
         sys.exit(f"Syntax Error at line {e.line}: {e.message}")
     except InterpreterRuntimeError as e:

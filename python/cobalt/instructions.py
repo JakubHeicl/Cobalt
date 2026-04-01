@@ -4,6 +4,14 @@ import numpy as np
 from .stack import Stack
 from .interpreter_errors import ExecutionError
 
+class RuntimeState:
+    def __init__(self, stack: Stack, variables: np.array, strings: list[str], initialized_variables: list[bool]):
+        self.stack = stack
+        self.variables = variables
+        self.strings = strings
+        self.initialized_variables = initialized_variables
+        self.pc = 0
+
 class Opcode(Enum):
     REA = auto(); STP = auto(); PRC = auto() 
     PRM = auto(); ADD = auto(); SUB = auto() 
@@ -14,159 +22,173 @@ class Opcode(Enum):
     GTH = auto(); LTH = auto(); GEQ = auto()
     LEQ = auto(); AND = auto(); NOT = auto()
     OR  = auto(); GET = auto(); SET = auto()
+    STK = auto()
 
-def REA(Stack: Stack, *args, pc = 0) -> None:
+OPCODES_WITH_ARGUMENT = [Opcode.STK, Opcode.PUS, Opcode.JIZ, Opcode.JUM, Opcode.JIT, Opcode.PRC, Opcode.GET, Opcode.SET]
+OPCODES_WITH_STRING_ARGUMENT = [Opcode.PRC]
+OPCODES_WITH_VARIABLE_ARGUMENT = [Opcode.GET, Opcode.SET]
+OPCODES_WITH_LABEL_ARGUMENT = [Opcode.JIZ, Opcode.JUM, Opcode.JIT]
+OPCODES_WITH_IDENTIFIER_ARGUMENT = [Opcode.JIZ, Opcode.JUM, Opcode.JIT, Opcode.GET, Opcode.SET]
+OPCODES_WITH_FLOAT_ARGUMENT = [Opcode.PUS]
+OPCODES_WITH_POS_INT_ARGUMENT = [Opcode.STK]
+
+def REA(r: RuntimeState, argument: float | int | None) -> None:
     try:
         number = float(input())
     except:
         raise ExecutionError(f"Invalid input. Expected a number.")
-    Stack.push(number)
-    return pc + 1
+    r.stack.push(number)
+    r.pc += 1
 
-def PUS(Stack: Stack, argument: float, *args, pc = 0) -> int:
-    Stack.push(argument)
-    return pc + 1
+def PUS(r: RuntimeState, argument: float | int | None) -> None:
+    r.stack.push(argument)
+    r.pc += 1
 
-def POP(Stack: Stack, *args, pc = 0) -> int:
-    Stack.pop()
-    return pc + 1
+def POP(r: RuntimeState, argument: float | int | None) -> None  :
+    r.stack.pop()
+    r.pc +=  1
 
-def SWP(Stack: Stack, *args, pc = 0) -> int:
-    Stack.swap()
-    return pc + 1
+def SWP(r: RuntimeState, argument: float | int | None) -> None:
+    r.stack.swap()
+    r.pc += 1
 
-def DUP(stack: Stack, *args, pc = 0) -> int:
-    stack.duplicate()
-    return pc + 1
+def DUP(r: RuntimeState, argument: float | int | None) -> None:
+    r.stack.duplicate()
+    r.pc += 1
  
-def EQU(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a == b else 0)
-    return pc + 1
+def EQU(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a == b else 0)
+    r.pc += 1
 
-def NEQ(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a != b else 0)
-    return pc + 1
+def NEQ(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a != b else 0)
+    r.pc += 1
 
-def GTH(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a > b else 0)
-    return pc + 1
+def GTH(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a > b else 0)
+    r.pc += 1
 
-def LTH(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a < b else 0)
-    return pc + 1
+def LTH(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a < b else 0)
+    r.pc += 1
 
-def GEQ(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a >= b else 0)
-    return pc + 1
+def GEQ(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a >= b else 0)
+    r.pc += 1
  
-def LEQ(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(1 if a <= b else 0)
-    return pc + 1
+def LEQ(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(1 if a <= b else 0)
+    r.pc += 1
   
-def AND(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
+def AND(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
     if a not in [0, 1] or b not in [0, 1]:
         raise ExecutionError(f"Invalid operands for AND. Expected 0 or 1 but got {a} and {b}.")
-    Stack.push(1 if a and b else 0)
-    return pc + 1
+    r.stack.push(1 if a and b else 0)
+    r.pc += 1
 
-def OR(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
+def OR(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
     if a not in [0, 1] or b not in [0, 1]:
         raise ExecutionError(f"Invalid operands for OR. Expected 0 or 1 but got {a} and {b}.")
-    Stack.push(1 if a or b else 0)
-    return pc + 1
+    r.stack.push(1 if a or b else 0)
+    r.pc += 1
 
-def NOT(Stack: Stack, *args, pc = 0) -> int:
-    a = Stack.pop()
+def NOT(r: RuntimeState, argument: float | int | None) -> None:
+    a = r.stack.pop()
     if a not in [0, 1]:
         raise ExecutionError(f"Invalid operand for NOT. Expected 0 or 1 but got {a}.")
-    Stack.push(1 if not a else 0)
-    return pc + 1
+    r.stack.push(1 if not a else 0)
+    r.pc += 1
 
-def ADD(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(a + b)
-    return pc + 1
+def ADD(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(a + b)
+    r.pc += 1
 
-def SUB(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(a - b)
-    return pc + 1
+def SUB(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(a - b)
+    r.pc += 1
 
-def MUL(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
-    Stack.push(a * b)
-    return pc + 1
+def MUL(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
+    r.stack.push(a * b)
+    r.pc += 1
 
-def DIV(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
+def DIV(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
     if b == 0:
         raise ExecutionError(f"Division by zero.")
-    Stack.push(a / b)
-    return pc + 1
+    r.stack.push(a / b)
+    r.pc += 1
 
-def MOD(Stack: Stack, *args, pc = 0) -> int:
-    b = Stack.pop()
-    a = Stack.pop()
+def MOD(r: RuntimeState, argument: float | int | None) -> None:
+    b = r.stack.pop()
+    a = r.stack.pop()
     if b == 0:
         raise ExecutionError(f"Modulo by zero.")
-    Stack.push(a % b)
-    return pc + 1
+    r.stack.push(a % b)
+    r.pc += 1
 
-def JIZ(Stack: Stack, argument: int, *args, pc = 0) -> int:
-    a = Stack.pop()
+def JIZ(r: RuntimeState, argument: float | int | None) -> None:
+    a = r.stack.pop()
     if a == 0:
-        return argument
-    return pc + 1
+        r.pc = argument
+    else:
+        r.pc += 1
 
-def JIT(Stack: Stack, argument: int, *args, pc = 0) -> int:
-    a = Stack.pop()
+def JIT(r: RuntimeState, argument: float | int | None) -> None:
+    a = r.stack.pop()
     if a not in [0, 1]:
         raise ExecutionError(f"Invalid operand for JIT. Expected 0 or 1 but got {a}.")
     if a != 0:
-        return argument
-    return pc + 1
+        r.pc = argument
+    else:
+        r.pc += 1
 
-def JUM(Stack: Stack, argument: int, *args, pc = 0) -> int:
-    return argument
- 
-def PRC(Stack: Stack, argument: int, messages: list[str], *args, pc = 0) -> int:
-    print(messages[argument])
-    return pc + 1
+def JUM(r: RuntimeState, argument: float | int | None) -> None:
+    r.pc = argument
 
-def PRM(Stack: Stack, *args, pc = 0) -> int:
-    print(Stack.peek())
-    return pc + 1
-   
-def SET(Stack: Stack, argument: int, messages: list[str], variables: np.array, *args, pc = 0) -> int:
-    variables[argument] = Stack.pop()
-    return pc + 1
+def PRC(r: RuntimeState, argument: float | int | None) -> None:
+    print(r.strings[argument])
+    r.pc += 1
+
+def PRM(r: RuntimeState, argument: float | int | None) -> None:
+    print(r.stack.peek())
+    r.pc += 1
+
+def SET(r: RuntimeState, argument: float | int | None) -> None:
+    r.variables[argument] = r.stack.pop()
+    r.initialized_variables[argument] = True
+    r.pc += 1
   
-def GET(Stack: Stack, argument: int, messages: list[str], variables: np.array, *args, pc = 0) -> int:
-    Stack.push(variables[argument])
-    return pc + 1
+def GET(r: RuntimeState, argument: float | int | None) -> None:
+    if not r.initialized_variables[argument]:
+        raise ExecutionError(f"Variable is not initialized.")    
+    r.stack.push(r.variables[argument])
+    r.pc += 1
 
-def STP(*args, pc = 0) -> int:
-    return pc
+def STP(r: RuntimeState, argument: float | int | None) -> None:
+    pass
 
 OPCODE_FUNCTIONS = {
     Opcode.REA: REA,

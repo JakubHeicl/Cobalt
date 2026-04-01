@@ -1,4 +1,15 @@
+python/cobalt_interpreter.egg-info/
+python/cobalt/__pycache__/
+__pycache__/
+dist/
+build/
+.pytest_cache/
+.venv/
+venv/
 *.exe
 *.obj
 *.o
 *.out
+*.pyc
+*.pyo
+__pycache__

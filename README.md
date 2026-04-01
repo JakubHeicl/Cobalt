@@ -1,125 +1,128 @@
 # Cobalt
 
-Cobalt is a small stack-based interpreted language created as a learning project.
-This repository contains two implementations of the interpreter:
+Cobalt is a small stack-based language created as a learning project. This repository contains two implementations of the same interpreter:
 
-- `interpreter.py` - a reference implementation in Python
-- `interpreter.c` - a lower-level implementation in C
+- a Python implementation packaged in `python/cobalt`
+- a C implementation in `c/`
 
-The project is focused on learning language design, tokenization, execution flow and basic runtime architecture.
-
-## Features
-
-- Stack-based execution model
-- Arithmetic operations: `ADD`, `SUB`, `MUL`, `DIV`, `MOD`
-- Comparison operations: `EQU`, `NEQ`, `GTH`, `LTH`, `GEQ`, `LEQ`
-- Boolean operations: `AND`, `OR`, `NOT`
-- Stack operations: `PUS`, `POP`, `DUP`, `SWP`
-- Variables: `SET`, `GET`
-- Control flow: `JUM`, `JIZ`, `JIT`
-- Labels using `LABEL:`
-- Input and output using `REA`, `PRC`, `PRM`
-- Example `.co` programs included in `programs/`
+The repository also includes example `.co` programs and an archived older Python version.
 
 ## Project Structure
 
 ```text
 cobalt/
-|- interpreter.py
-|- interpreter.c
-|- programs/
-|  |- calculator.co
-|  |- countdown.co
-|  |- factorial.co
-|  |- isprime.co
-|  |- parity.co
+├─ c/
+│  └─ interpreter.c
+├─ example_programs/
+│  ├─ calculator.co
+│  ├─ countdown.co
+│  ├─ factorial.co
+│  ├─ isprime.co
+│  └─ parity.co
+├─ legacy/
+│  └─ interpreter_v1.py
+├─ python/
+│  ├─ cobalt/
+│  │  ├─ __init__.py
+│  │  ├─ __main__.py
+│  │  ├─ instructions.py
+│  │  ├─ interpreter.py
+│  │  ├─ interpreter_errors.py
+│  │  └─ stack.py
+├─ pyproject.toml
+└─ README.md
 ```
 
 ## Language Basics
 
 Each instruction is written on its own line.
 
-- Empty lines are ignored
-- Lines starting with `#` are treated as comments
-- Labels end with `:`
-- Some instructions take an argument on the same line
+- empty lines are ignored
+- comments start with `#`
+- labels end with `:`
+- some instructions expect an argument
+- strings are expected to be inside `"`
 
 Example:
 
 ```text
 START:
-PRC Enter a number:
+PRC "ENTER A NUMBER:"
 REA
 SET N
 PUS 1
 SET RES
 ```
 
-## Example Program
+## Supported Instructions
 
-Example factorial program:
+- arithmetic: `ADD`, `SUB`, `MUL`, `DIV`, `MOD`
+- comparisons: `EQU`, `NEQ`, `GTH`, `LTH`, `GEQ`, `LEQ`
+- boolean logic: `AND`, `OR`, `NOT`
+- stack operations: `PUS`, `POP`, `DUP`, `SWP`
+- variables: `SET`, `GET`
+- control flow: `JUM`, `JIZ`, `JIT`
+- input and output: `REA`, `PRC`, `PRM`
+- program termination: `STP`
 
-```text
-START:
-PRC ENTER A NUMBER:
-REA
-SET N
-PUS 1
-SET RES
+## Python Implementation
 
-LOOP:
-GET N
-JIZ RESULT
-GET N
-GET RES
-MUL
-SET RES
-GET N
-PUS 1
-SUB
-SET N
-JUM LOOP
-
-RESULT:
-PRC THE RESULT IS:
-GET RES
-PRM
-STP
-```
-
-## Running the Python Interpreter
-
-Run:
+The Python version is organized as a package. First install it in editable mode from the repository root:
 
 ```bash
-python interpreter.py
+python -m pip install -e .
 ```
 
-The current Python entry point runs one of the example programs from the
-`programs/` directory. You can change the selected file in the `__main__`
-section of `interpreter.py`.
-
-## Building and Running the C Interpreter
-
-You need a C compiler such as Clang, GCC, or MSVC.
-
-Example with Clang:
+Then run the interpreter like this:
 
 ```bash
-clang interpreter.c -o interpreter.exe
-interpreter.exe programs/factorial.co
+python -m cobalt example_programs/factorial.co
 ```
 
-The C interpreter expects the path to a `.co` program as a command-line argument.
+Another example:
+
+```bash
+python -m cobalt example_programs/parity.co
+```
+
+If you get `No module named cobalt`, the package usually has not been installed yet with `pip install -e .`.
+
+## C Implementation
+
+The C version is stored in `c/interpreter.c`.
+
+Example compilation with Clang:
+
+```bash
+clang c/interpreter.c -o c/interpreter.exe
+```
+
+Run it like this:
+
+```bash
+c/interpreter.exe example_programs/factorial.co
+```
+
+You can use the same approach for the other programs in `example_programs/`.
 
 ## Example Programs
 
-The `programs/` directory currently contains:
+The `example_programs/` directory currently contains:
 
-- `factorial.co` - factorial using variables, loops, and jumps
-- `countdown.co` - simple countdown loop
-- `parity.co` - parity check
+- `factorial.co` - factorial computation
+- `countdown.co` - a simple countdown loop
+- `parity.co` - even/odd check
 - `isprime.co` - primality test
-- `calculator.co` - calculator-style program
+- `calculator.co` - a simple calculator-style program
 
-These files also serve as small regression tests for the language.
+These files also serve as practical smoke tests for the language.
+
+## Version Note
+
+The current main Python implementation is located in `python/cobalt/`.
+
+The older Python version is archived in:
+
+```text
+legacy/interpreter_v1.py
+```

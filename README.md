@@ -1,40 +1,14 @@
 # Cobalt
 
-Cobalt is a small stack-based language created as a learning project. This repository contains two implementations of the same interpreter:
+Cobalt is a small stack-based programming language and interpreter written as a
+learning project. The current implementation lives in `python/cobalt` and can
+either interpret `.co` programs directly or compile them to C.
 
-- a Python implementation packaged in `python/cobalt`
-- a C implementation in `c/`
+The repository also contains example Cobalt programs, generated C examples, a
+minimal VS Code syntax-highlighting extension, and older archived
+implementations under `legacy/`.
 
-The repository also includes example `.co` programs and an archived older Python version.
-
-## Project Structure
-
-```text
-cobalt/
-├─ c/
-│  └─ interpreter.c
-├─ example_programs/
-│  ├─ calculator.co
-│  ├─ countdown.co
-│  ├─ factorial.co
-│  ├─ isprime.co
-│  ├─ parity.co
-│  └─ sumton.co
-├─ legacy/
-│  └─ interpreter_v1.py
-├─ python/
-│  ├─ cobalt/
-│  │  ├─ __init__.py
-│  │  ├─ __main__.py
-│  │  ├─ instructions.py
-│  │  ├─ interpreter.py
-│  │  ├─ interpreter_errors.py
-│  │  └─ stack.py
-├─ pyproject.toml
-└─ README.md
-```
-
-## Python Implementation
+## Quick Start
 
 Install the package in editable mode from the repository root:
 
@@ -42,159 +16,196 @@ Install the package in editable mode from the repository root:
 python -m pip install -e .
 ```
 
-Run a program like this:
+Run a Cobalt program with the interpreter:
 
 ```bash
-python -m cobalt example_programs/factorial.co
+python -m cobalt example_programs/factorial.co --interpret
 ```
 
-Another example:
+Compile a Cobalt program to C:
 
 ```bash
-python -m cobalt example_programs/parity.co
+python -m cobalt example_programs/math_demo.co --compile
 ```
 
-If you get `No module named cobalt`, the package usually has not been installed yet with `pip install -e .`.
+The compiler writes the generated file next to the source file. For example,
+`example_programs/math_demo.co` becomes `example_programs/math_demo.c`.
 
-## C Implementation
+If you do not want to install the package, run it with `PYTHONPATH` pointed at
+the `python` directory:
 
-The C version is stored in `c/interpreter.c`.
-
-Example compilation with Clang:
-
-```bash
-clang c/interpreter.c -o c/interpreter.exe
+```powershell
+$env:PYTHONPATH = "python"
+python -m cobalt example_programs/factorial.co --interpret
 ```
 
-Run it like this:
+## Requirements
 
-```bash
-c/interpreter.exe example_programs/factorial.co
+- Python 3.10 or newer
+- `numpy`
+- optional: a C compiler such as Clang or GCC for generated C files
+
+The Python dependency is declared in `pyproject.toml` and is installed by
+`python -m pip install -e .`.
+
+## Command Line Interface
+
+```text
+python -m cobalt <file.co> --interpret
+python -m cobalt <file.co> --compile
 ```
 
-## Language Overview
+Arguments:
 
-Cobalt is a stack-based language. Most instructions work by popping values from the stack, performing an operation, and pushing a result back.
+- `<file.co>`: path to a Cobalt source file
+- `--interpret`: tokenize, preprocess, parse, build, and execute the program
+- `--compile`: tokenize, preprocess, parse, and emit a `.c` file
 
-The language currently supports:
+One mode flag is required. If both flags are provided, the program is interpreted
+first and then compiled.
 
-- numbers
-- labels
-- variables
-- string literals for `PRC`
-- conditional and unconditional jumps
-- configurable stack size through `STK`
+The CLI reports syntax, runtime, include, and missing-file errors with the source
+file and line number when available.
 
-### Lexical and Syntax Rules
+## Project Structure
 
-- Commands are written as uppercase mnemonics such as `PUS`, `ADD`, `JUM`, or `STP`.
+```text
+cobalt/
+|-- example_programs/
+|   |-- *.co                 Example Cobalt programs
+|   |-- calculator.c         Generated C example
+|   `-- sine.c               Generated C example
+|-- legacy/
+|   |-- c/                   Archived C interpreter
+|   |-- cobalt_v2/           Archived Python implementation
+|   `-- interpreter_v1.py    Older single-file interpreter
+|-- python/
+|   `-- cobalt/
+|       |-- __main__.py      CLI entry point
+|       |-- tokenizer.py     Source tokenizer
+|       |-- preprocessor.py  Include expansion
+|       |-- parser.py        Syntax validation and symbol collection
+|       |-- ir.py            Tokens, statements, opcodes, and program IR
+|       |-- interpreter.py   Program builder and Python executor
+|       |-- runtime.py       Runtime opcode implementations
+|       |-- stack.py         Memory and call stacks
+|       |-- compiler.py      C code generator
+|       |-- c_templates.py   C templates used by the compiler
+|       |-- config.py        Default stack sizes and entry label
+|       `-- interpreter_errors.py
+|-- vscode/
+|   `-- cobalt-language/     VS Code syntax-highlighting extension
+|-- pyproject.toml
+`-- README.md
+```
+
+## Language Model
+
+Cobalt is stack based. Instructions usually read values from the memory stack,
+perform an operation, and push a result back.
+
+Runtime numeric values are stored as `float64` values in the Python
+implementation. Integer-looking literals are therefore printed as floats by
+`PRM`, for example `120.0`.
+
+The runtime has two stacks:
+
+- memory stack: holds program values, default size `128`
+- call stack: holds function return addresses in the Python interpreter,
+  default size `64`
+
+`STK size` can change the memory stack size for a program. It must be the first
+command after include expansion.
+
+## Source Format
+
+- Opcodes are uppercase mnemonics such as `PUS`, `ADD`, `JUM`, and `STP`.
 - Tokens are separated by whitespace.
 - Empty lines are ignored.
-- Comments start with `#` and continue until the end of the line.
-- Labels end with `:`.
-- Strings must be written inside double quotes.
-- Identifiers are used for variable names and jump targets.
-- In practice, most programs use one instruction per line, but the parser works on whitespace-separated tokens.
+- Comments start with `#` and continue to the end of the line.
+- Labels are identifiers followed by `:`.
+- Strings are written in double quotes.
+- Most examples use one instruction per line, but multiple instructions can be
+  written on one line.
+- Negative numeric literals are accepted for numeric operands such as `PUS -1`.
 
 Example:
 
 ```text
-STK 128
-
 START:
 PRC "ENTER A NUMBER:"
 REA
 SET N
 PUS 1
-SET RES
+SET RESULT
+STP
 ```
 
-## Values and Arguments
+## Program Structure
 
-Cobalt is numerically focused. All runtime numeric values on the stack are stored as floating-point values, even when the source literal looks like an integer.
-
-The parser currently distinguishes these token kinds:
-
-- command
-- positive integer
-- floating-point number
-- identifier
-- string
-- label
-
-From the language user's point of view, the important rule is simply:
-
-- `STK` expects a positive integer literal
-- `PUS` expects a numeric literal
-- `PRC` expects a string literal
-- `GET`, `SET`, `JUM`, `JIZ`, and `JIT` expect an identifier
-
-Examples:
+Every current Cobalt program must include the entry label:
 
 ```text
-STK 128
-PUS 5
-PUS 3.14
-PUS -2
-PRC "HELLO"
-GET COUNT
-JUM LOOP
+START:
 ```
 
-## Execution Model
+Execution starts at `START`, not necessarily at the first line of the file. This
+allows function definitions to appear before the main program.
 
-Execution starts at the first compiled instruction and proceeds through the instruction list using a program counter.
+The program must also contain `STP` in the main program. `STP` stops execution.
 
-Some instructions only move to the next instruction:
+Labels must be unique. Jumps are scoped: a jump inside a function can only target
+a label in that same function, and a jump in the main program can only target a
+label in the main program.
 
-- `PUS`
-- arithmetic instructions
-- comparison instructions
-- `GET`
-- `SET`
-- `PRC`
-- `PRM`
+## Includes
 
-Some instructions change control flow:
+`ICL "file.co"` includes another source file before parsing.
 
-- `JUM` jumps unconditionally
-- `JIZ` jumps when the popped value is `0`
-- `JIT` jumps when the popped value is `1`
-- `STP` ends the program
+```text
+ICL "math.co"
 
-If an instruction cannot complete correctly, the interpreter raises a runtime error. Typical examples are:
+START:
+PUS -10
+CAL ABS
+PRM
+STP
+```
 
-- stack underflow
-- division by zero
-- modulo by zero
-- invalid boolean values for `AND`, `OR`, `NOT`, or `JIT`
-- reading a variable before it has been initialized
+Included paths are resolved relative to the file that contains the `ICL`
+instruction. The preprocessor detects include cycles and skips files that have
+already been included.
 
-## Stack Model
+## Functions
 
-The stack is the core runtime structure.
+Functions are declared before `START`:
 
-- `PUS` pushes a value onto the stack
-- arithmetic, comparison, and boolean operations usually pop two values
-- `PRM` prints the current top value without removing it
-- `POP` removes the top value
-- `DUP` duplicates the top value
-- `SWP` swaps the top two values
+```text
+FUN SQUARE
+    DUP
+    MUL
+    RET
 
-If an operation requires values that are not present, the interpreter raises a runtime error.
+START:
+    PUS 5
+    CAL SQUARE
+    PRM
+    STP
+```
+
+Function rules:
+
+- `FUN name` starts a function definition.
+- `RET` returns from the current function.
+- `CAL name` calls a function.
+- Functions must be defined before `START`.
+- Functions cannot be nested.
+- Function calls pass data through the shared memory stack.
+- Variables are global runtime slots shared by the main program and functions.
 
 ## Variables
 
-Variables are referenced by name through `SET` and `GET`.
-
-Current behavior:
-
-- a variable slot is created when the parser first sees that name in `GET` or `SET`
-- `SET name` pops a value from the stack and stores it in the variable
-- `GET name` pushes the current value of the variable onto the stack
-- using `GET` before the variable has been initialized by `SET` causes a runtime error
-
-Example:
+Variables are created by the parser when their names appear in `GET` or `SET`.
 
 ```text
 REA
@@ -203,208 +214,241 @@ GET N
 PRM
 ```
 
-## Labels and Control Flow
-
-Labels mark instruction positions and are used as jump targets.
-
-Example:
-
-```text
-LOOP:
-GET N
-JIZ END
-...
-JUM LOOP
-
-END:
-STP
-```
-
 Rules:
 
-- labels must be unique
-- jump targets must exist
-- `JIZ` and `JIT` consume the value they test from the stack
-
-## `STK` Directive
-
-`STK` configures the stack size for the current program.
-
-Rules:
-
-- `STK` must be the first command in the file
-- it expects a positive integer
-- if `STK` is not present, the default stack size is `64`
-
-Example:
-
-```text
-STK 256
-```
+- `SET name` pops the top value and stores it.
+- `GET name` pushes the stored value.
+- Reading a variable before it has been initialized raises a runtime error.
 
 ## Instruction Reference
 
 ### Input and Output
 
 `REA`
-: Syntax: `REA`
-: Reads one line from standard input, converts it to a number, and pushes it onto the stack.
+: Reads one line from standard input, converts it to a number, and pushes it.
 
 `PRC "text"`
-: Syntax: `PRC "text"`
-: Prints a string literal stored in the program.
+: Prints a string literal.
 
 `PRM`
-: Syntax: `PRM`
-: Prints the current top of the stack without removing it.
+: Prints the current top value without removing it.
 
 ### Stack Operations
 
 `PUS number`
-: Syntax: `PUS number`
-: Pushes a numeric literal onto the stack.
+: Pushes a numeric literal.
 
 `POP`
-: Syntax: `POP`
-: Removes the top value from the stack.
+: Removes the top value.
 
 `DUP`
-: Syntax: `DUP`
-: Duplicates the top value on the stack.
+: Duplicates the top value.
 
 `SWP`
-: Syntax: `SWP`
-: Swaps the top two stack values.
+: Swaps the top two values.
+
+`DEP`
+: Pushes the current memory-stack depth.
 
 ### Arithmetic
 
-All arithmetic operations pop two operands in this order:
-
-- first pop -> right operand
-- second pop -> left operand
-
-Then they push the result.
+Arithmetic instructions pop `b` first, then `a`, and push the result.
 
 `ADD`
-: Syntax: `ADD`
-: Pops `b`, then `a`, and pushes `a + b`.
+: Pushes `a + b`.
 
 `SUB`
-: Syntax: `SUB`
-: Pops `b`, then `a`, and pushes `a - b`.
+: Pushes `a - b`.
 
 `MUL`
-: Syntax: `MUL`
-: Pops `b`, then `a`, and pushes `a * b`.
+: Pushes `a * b`.
 
 `DIV`
-: Syntax: `DIV`
-: Pops `b`, then `a`, and pushes `a / b`. Division by zero raises a runtime error.
+: Pushes `a / b`. Division by zero raises a runtime error.
 
 `MOD`
-: Syntax: `MOD`
-: Pops `b`, then `a`, and pushes `a % b`. Modulo by zero raises a runtime error.
+: Pushes `a % b`. Modulo by zero raises a runtime error.
 
 ### Comparison
 
-Comparison operations pop two values and push:
-
-- `1` if the comparison is true
-- `0` if the comparison is false
+Comparison instructions pop `b` first, then `a`, and push `1` for true or `0`
+for false.
 
 `EQU`
-: Syntax: `EQU`
-: Pops two values and pushes `1` if `a == b`, otherwise `0`.
+: `a == b`
 
 `NEQ`
-: Syntax: `NEQ`
-: Pops two values and pushes `1` if `a != b`, otherwise `0`.
+: `a != b`
 
 `GTH`
-: Syntax: `GTH`
-: Pops two values and pushes `1` if `a > b`, otherwise `0`.
+: `a > b`
 
 `LTH`
-: Syntax: `LTH`
-: Pops two values and pushes `1` if `a < b`, otherwise `0`.
+: `a < b`
 
 `GEQ`
-: Syntax: `GEQ`
-: Pops two values and pushes `1` if `a >= b`, otherwise `0`.
+: `a >= b`
 
 `LEQ`
-: Syntax: `LEQ`
-: Pops two values and pushes `1` if `a <= b`, otherwise `0`.
+: `a <= b`
 
 ### Boolean Logic
 
 Boolean instructions expect values `0` or `1`.
 
 `AND`
-: Syntax: `AND`
-: Pops two boolean values and pushes their logical conjunction.
+: Logical conjunction.
 
 `OR`
-: Syntax: `OR`
-: Pops two boolean values and pushes their logical disjunction.
+: Logical disjunction.
 
 `NOT`
-: Syntax: `NOT`
-: Pops one boolean value and pushes its negation.
+: Logical negation.
 
 ### Variables
 
 `SET name`
-: Syntax: `SET name`
-: Pops the top stack value and stores it in variable `name`.
+: Pops and stores a value.
 
 `GET name`
-: Syntax: `GET name`
-: Pushes the value of variable `name` onto the stack. If the variable has not been initialized yet, the interpreter raises a runtime error.
+: Pushes a stored value.
 
 ### Control Flow
 
 `JUM label`
-: Syntax: `JUM label`
-: Unconditional jump to `label`.
+: Jumps unconditionally.
 
 `JIZ label`
-: Syntax: `JIZ label`
-: Pops one value. If it is `0`, jumps to `label`. Otherwise execution continues with the next instruction.
+: Pops a value and jumps if it is `0`.
 
 `JIT label`
-: Syntax: `JIT label`
-: Pops one value. If it is `1`, jumps to `label`. If it is `0`, execution continues. Any other value causes a runtime error.
+: Pops a value and jumps if it is `1`. Values other than `0` or `1` are runtime
+errors.
+
+### Functions
+
+`FUN name`
+: Declares a function. This is a compile-time declaration and does not execute
+at runtime.
+
+`CAL name`
+: Calls a function.
+
+`RET`
+: Returns from a function.
 
 ### Program Configuration and Termination
 
+`ICL "file.co"`
+: Includes another source file before parsing.
+
 `STK size`
-: Syntax: `STK size`
-: Sets the stack size for the program. Must appear as the first command.
+: Sets the memory stack size. The argument must be a positive integer.
 
 `STP`
-: Syntax: `STP`
-: Stops program execution.
+: Stops the main program.
+
+## Compiling Generated C
+
+After running `--compile`, compile the generated C file with your system C
+compiler.
+
+On Windows with Clang:
+
+```powershell
+clang example_programs\math_demo.c -o math_demo.exe
+.\math_demo.exe
+```
+
+On Unix-like systems, link the math library because generated code uses `fmod`
+for `MOD`:
+
+```bash
+cc example_programs/math_demo.c -lm -o math_demo
+./math_demo
+```
+
+Generated C mirrors the Cobalt program with C functions, labels, `goto` jumps,
+and a small stack runtime emitted from `python/cobalt/c_templates.py`.
 
 ## Example Programs
 
-The `example_programs/` directory currently contains:
+The `example_programs/` directory includes:
 
-- `factorial.co` - factorial computation
-- `countdown.co` - a countdown loop
-- `parity.co` - even/odd check
-- `isprime.co` - primality test
-- `calculator.co` - a simple calculator-style program
-- `sumton.co` - summation from `1` to `n`
+- `calculator.co`: four-operation calculator with modulo
+- `countdown.co`: countdown loop
+- `factorial.co`: factorial computation
+- `fibonacci.co`: Fibonacci computation
+- `isprime.co`: primality check
+- `math.co`: reusable functions such as `ABS`, `MIN`, `MAX`, and `CLAMP`
+- `math_demo.co`: include and function-call demo using `math.co`
+- `power.co`: integer power loop
+- `sine.co`: sine approximation using functions
+- `sumton.co`: iterative sum from `1` to `n`
+- `sumton2.co`: direct arithmetic sum formula
+- `calculator.c` and `sine.c`: generated C snapshots
 
-These files also serve as practical smoke tests for the language.
+Note: `parity.co` is an older example and currently does not include the required
+`START:` label, so the current parser rejects it.
 
-## Version Note
+## VS Code Extension
 
-The current main Python implementation is located in `python/cobalt/`.
+`vscode/cobalt-language` contains a minimal local VS Code extension for Cobalt
+syntax highlighting.
 
-The older Python version is archived in:
+It provides:
+
+- `.co` file association
+- line comments with `#`
+- highlighting for opcodes, labels, variables, strings, numbers, includes, and
+  function calls
+
+It does not provide diagnostics, snippets, autocomplete, formatting, or run
+commands.
+
+To test it locally:
+
+1. Open `vscode/cobalt-language` in VS Code.
+2. Press `F5`.
+3. Open a `.co` file in the Extension Development Host window.
+
+## Development Notes
+
+The current pipeline is:
 
 ```text
-legacy/interpreter_v1.py
+source file
+-> tokenizer
+-> include preprocessor
+-> parser and symbol collection
+-> Python Program IR
+-> interpreter execution or C code generation
 ```
+
+There is no dedicated automated test suite in this repository yet. The example
+programs are the most useful smoke tests for interpreter and compiler behavior.
+
+Useful smoke-test commands:
+
+```bash
+python -m cobalt example_programs/factorial.co --interpret
+python -m cobalt example_programs/math_demo.co --compile
+```
+
+## Troubleshooting
+
+`No module named cobalt`
+: Install the project with `python -m pip install -e .`, or set
+`PYTHONPATH=python` when running from the repository root.
+
+`Please specify --interpret or --compile.`
+: Add one of the required mode flags.
+
+`The program must include the entry label 'START:'`
+: Add a `START:` label to the main program.
+
+`Missing STP command to stop the program.`
+: Add `STP` to the main program.
+
+`Include cycle detected`
+: Check `ICL` usage for files that include each other.

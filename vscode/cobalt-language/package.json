@@ -1,0 +1,35 @@
+{
+  "name": "cobalt-language",
+  "displayName": "Cobalt Language Support",
+  "description": "Syntax highlighting for the Cobalt programming language",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "cobalt",
+        "aliases": [
+          "Cobalt",
+          "cobalt"
+        ],
+        "extensions": [
+          ".co"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cobalt",
+        "scopeName": "source.cobalt",
+        "path": "./syntaxes/cobalt.tmLanguage.json"
+      }
+    ]
+  }
+}

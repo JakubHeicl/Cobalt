@@ -1,0 +1,63 @@
+#VAR X          input
+#VAR PI         pi
+#VAR TERM       one term in the expression
+#VAR SUM        the entire result
+#VAR K          current term
+#VAR MAX_K      maximum number of terms to calculate
+#calculation as TERM = TERM * (-1) * X * X / ((2*K + 2) * (2*K + 3))
+#               SUM = SUM + TERM
+#               K = K + 1
+FUN X_SQUARED 
+    GET X DUP MUL 
+    RET
+
+FUN TWO_K_TWO 
+    GET K PUS 2 MUL PUS 2 ADD 
+    RET
+
+FUN TWO_K_THREE
+    GET K PUS 2 MUL PUS 3 ADD 
+    RET
+
+FUN NEXT_TERM 
+    GET TERM PUS -1 MUL CAL X_SQUARED MUL 
+    CAL TWO_K_THREE DIV 
+    CAL TWO_K_TWO DIV 
+    SET TERM 
+    RET
+
+FUN X_IN_BOUNDS  #ensures that x is between -PI and PI
+    BEGIN:
+    PUS 3.14159265358979 SET PI
+    GET PI PUS 2 MUL SET DPI 
+    GET X GET PI GEQ 
+    JIT BIGGER
+    GET X GET PI PUS -1 MUL LEQ
+    JIT SMALLER
+    JUM END
+    BIGGER: GET X GET DPI SUB SET X JUM BEGIN
+    SMALLER: GET X GET DPI ADD SET X JUM BEGIN
+    END: RET
+
+START:
+    PRC "ENTER A NUMBER:"
+    REA SET X
+    CAL X_IN_BOUNDS
+    GET X SET TERM
+    GET X SET SUM
+    PUS 0 SET K
+    PUS 100 SET MAX_K
+
+    LOOP:
+    GET K GET MAX_K EQU JIT RESULT
+    CAL NEXT_TERM
+    GET SUM GET TERM ADD SET SUM
+    GET K PUS 1 ADD SET K
+    JUM LOOP
+
+    RESULT:
+    PRC "THE RESULT IS:"
+    GET SUM PRM
+    PRC "DO YOU WANNA START AGAIN? YES (1), NO (0)"
+    REA JIT START
+    STP

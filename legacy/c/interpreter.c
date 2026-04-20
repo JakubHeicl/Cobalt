@@ -178,6 +178,25 @@ void trim_right_whitespace(char *string) {
     }
 }
 
+void trim_left_whitespace(char *string) {
+    size_t len = strlen(string);
+    size_t start = 0;
+
+    while(start < len && isspace((unsigned char) string[start])) {
+        start++;
+    }
+    if(start == len) {
+        string[0] = '\0';
+        return;
+    }
+    memmove(string, string + start, len - start + 1);
+}
+
+void strip(char *string) {
+    trim_left_whitespace(string);
+    trim_right_whitespace(string);   
+}
+
 void stop_if_empty(char *string) {
     if(strcmp(string, "") == 0) {
         fprintf(stderr, "Missing argument");

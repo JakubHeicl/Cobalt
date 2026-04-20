@@ -1,0 +1,204 @@
+{
+  "name": "Cobalt",
+  "scopeName": "source.cobalt",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#label-declarations"
+    },
+    {
+      "include": "#directive-lines"
+    },
+    {
+      "include": "#argumented-opcodes"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.cobalt",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.cobalt",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.cobalt"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.cobalt"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.cobalt",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "label-declarations": {
+      "patterns": [
+        {
+          "name": "meta.label.entrypoint.cobalt",
+          "match": "^\\s*((?:MAIN|START))(:)",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.cobalt"
+            },
+            "2": {
+              "name": "punctuation.separator.label.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.label.cobalt",
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(:)",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.label.cobalt"
+            },
+            "2": {
+              "name": "punctuation.separator.label.cobalt"
+            }
+          }
+        }
+      ]
+    },
+    "directive-lines": {
+      "patterns": [
+        {
+          "name": "meta.directive.stack.cobalt",
+          "match": "\\b(STK)\\b\\s+([0-9]+)\\b",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.directive.cobalt"
+            },
+            "2": {
+              "name": "constant.numeric.integer.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.directive.function.cobalt",
+          "match": "\\b(FUN)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.directive.cobalt"
+            },
+            "2": {
+              "name": "entity.name.function.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.directive.import.cobalt",
+          "match": "\\b(ICL)\\b",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.directive.cobalt"
+            }
+          }
+        }
+      ]
+    },
+    "argumented-opcodes": {
+      "patterns": [
+        {
+          "name": "meta.variable-access.cobalt",
+          "match": "\\b(GET|SET)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cobalt"
+            },
+            "2": {
+              "name": "variable.other.readwrite.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.jump.cobalt",
+          "match": "\\b(JUM|JIZ|JIT)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cobalt"
+            },
+            "2": {
+              "name": "entity.name.function.label.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.call.cobalt",
+          "match": "\\b(CAL)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cobalt"
+            },
+            "2": {
+              "name": "entity.name.function.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.push.cobalt",
+          "match": "\\b(PUS)\\b\\s+(-?(?:\\d+\\.\\d+|\\d+))\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.cobalt"
+            },
+            "2": {
+              "name": "constant.numeric.cobalt"
+            }
+          }
+        },
+        {
+          "name": "meta.print-string.cobalt",
+          "match": "\\b(PRC)\\b",
+          "captures": {
+            "0": {
+              "name": "keyword.control.cobalt"
+            }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.cobalt",
+          "match": "\\b(?:REA|STP|PRC|PRM|ADD|SUB|DIV|MUL|MOD|JIZ|JUM|JIT|PUS|POP|DUP|SWP|EQU|NEQ|GTH|LTH|GEQ|LEQ|AND|NOT|OR|GET|SET|CAL|RET|DEP)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.cobalt",
+          "match": "\\b-?(?:\\d+\\.\\d+|\\d+)\\b"
+        }
+      ]
+    }
+  }
+}
